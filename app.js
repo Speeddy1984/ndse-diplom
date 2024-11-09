@@ -15,11 +15,49 @@ const advertisementRoutes = require('./routes/advertisement');
 const app = express();
 const PORT = process.env.HTTP_PORT || 3000;
 
-// Создаем HTTP-сервер и настраиваем Socket.IO
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  allowEIO3: true,
+  perMessageDeflate: false,
+});
 
-// Подключаем сокеты для чатов
+// Настройка сессий для HTTP и WebSocket
+const sessionMiddleware = session({
+  secret: 'secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, httpOnly: true, maxAge: 24 * 60 * 60 * 1000 },
+  store: MongoStore.create({ mongoUrl: process.env.MONGO_URL })
+});
+
+// Применяем sessionMiddleware как к HTTP, так и к WebSocket
+app.use(sessionMiddleware);
+
+// Настраиваем Passport для HTTP
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Подключаем сессии и Passport к WebSocket
+io.use((socket, next) => {
+  sessionMiddleware(socket.request, {}, next);
+});
+io.use((socket, next) => {
+  passport.initialize()(socket.request, {}, next);
+});
+io.use((socket, next) => {
+  passport.session()(socket.request, {}, next);
+});
+
+// Проверка авторизации пользователя
+io.use((socket, next) => {
+  if (socket.request.user) {
+    next();
+  } else {
+    next(new Error("Unauthorized"));
+  }
+});
+
+// Подключаем чат через WebSocket
 setupChatSocket(io);
 
 // Подключение к MongoDB
@@ -27,20 +65,7 @@ mongoose.connect(process.env.MONGO_URL, { useNewUrlParser: true, useUnifiedTopol
   .then(() => console.log('Подключено к MongoDB'))
   .catch((err) => console.error('Нет подключения к MongoDB', err));
 
-// Настройка сессий
-app.use(session({
-  secret: 'secretkey',
-  resave: true,
-  saveUninitialized: false,
-  cookie: { secure: false, httpOnly: true, maxAge: 24 * 60 * 60 * 1000 },
-  store: MongoStore.create({ mongoUrl: process.env.MONGO_URL })
-}));
-
 app.use(express.json());
-
-// Подключение Passport
-app.use(passport.initialize());
-app.use(passport.session());
 
 // Подключение маршрутов
 app.use('/api', authRoutes);
@@ -50,4 +75,5 @@ app.use('/api', advertisementRoutes);
 server.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
 });
+
 module.exports = app;

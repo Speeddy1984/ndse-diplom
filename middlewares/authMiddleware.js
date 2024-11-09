@@ -1,3 +1,5 @@
+const { sendSuccess, sendError } = require('../utils/response');
+
 function ensureAuthenticated(req, res, next) {
   console.log('Session:', req.session);
   console.log('User:', req.user);
@@ -5,7 +7,7 @@ function ensureAuthenticated(req, res, next) {
     if (req.isAuthenticated()) {
       return next();
     }
-    res.status(401).json({ error: "Необходима авторизация", status: "error" });
+    sendError(res, "Необходимо аутентифицироваться", "error", 401);
   }
   
   module.exports = ensureAuthenticated;

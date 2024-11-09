@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const router = express.Router();
 const ensureAuthenticated = require('../middlewares/authMiddleware');
+const { sendSuccess, sendError } = require('../utils/response');
 
 // Настройка загрузки файлов с помощью multer
 const storage = multer.diskStorage({
@@ -36,7 +37,7 @@ router.post('/advertisements', ensureAuthenticated, upload.array('images'), asyn
   const userId = req.user ? req.user._id : null;
 
   if (!userId) {
-    return res.status(401).json({ error: "Необходимо аутентифицироваться", status: "error" });
+    return sendError(res, "Необходимо аутентифицироваться", "error", 401);
   }
 
   try {
@@ -44,19 +45,16 @@ router.post('/advertisements', ensureAuthenticated, upload.array('images'), asyn
     const images = req.files.map(file => file.path);
     const advertisement = await createAdvertisement({ shortText, description, tags, images, userId });
     
-    res.json({
-      data: {
-        id: advertisement._id,
-        shortText: advertisement.shortText,
-        description: advertisement.description,
-        images: advertisement.images,
-        user: { id: userId },
-        createdAt: advertisement.createdAt
-      },
-      status: "ok"
+    sendSuccess(res, {
+      id: advertisement._id,
+      shortText: advertisement.shortText,
+      description: advertisement.description,
+      images: advertisement.images,
+      user: { id: userId },
+      createdAt: advertisement.createdAt,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message, status: "error" });
+    sendError(res, error.message);
   }
 });
 
@@ -66,22 +64,16 @@ router.get('/advertisements', async (req, res) => {
     // Получаем все объявления и раскрываем информацию о пользователе через populate
     const advertisements = await Advertisement.find().populate('userId', 'name');
 
-    res.json({
-      data: advertisements.map(ad => ({
-        id: ad._id,
-        shortText: ad.shortText,
-        description: ad.description,
-        images: ad.images,
-        user: {
-          id: ad.userId._id,
-          name: ad.userId.name
-        },
-        createdAt: ad.createdAt
-      })),
-      status: "ok"
-    });
+    sendSuccess(res, advertisements.map(ad => ({
+      id: ad._id,
+      shortText: ad.shortText,
+      description: ad.description,
+      images: ad.images,
+      user: { id: ad.userId._id, name: ad.userId.name },
+      createdAt: ad.createdAt,
+    })));
   } catch (error) {
-    res.status(500).json({ error: error.message, status: "error" });
+    sendError(res, error.message);
   }
 });
 
@@ -93,25 +85,22 @@ router.get('/advertisements/:id', async (req, res) => {
     const advertisement = await Advertisement.findById(id).populate('userId', 'name');
     
     if (!advertisement) {
-      return res.status(404).json({ error: "Объявление не найдено", status: "error" });
+      return sendError(res, "Объявление не найдено", "error", 404);
     }
 
-    res.json({
-      data: {
-        id: advertisement._id,
-        shortText: advertisement.shortText,
-        description: advertisement.description,
-        images: advertisement.images,
-        user: {
-          id: advertisement.userId._id,
-          name: advertisement.userId.name
-        },
-        createdAt: advertisement.createdAt
+    sendSuccess(res, {
+      id: advertisement._id,
+      shortText: advertisement.shortText,
+      description: advertisement.description,
+      images: advertisement.images,
+      user: {
+        id: advertisement.userId._id,
+        name: advertisement.userId.name
       },
-      status: "ok"
+      createdAt: advertisement.createdAt,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message, status: "error" });
+    sendError(res, error.message);
   }
 });
 
@@ -123,18 +112,18 @@ router.delete('/advertisements/:id', ensureAuthenticated, async (req, res) => {
   console.log("id объявления при удалении" + id);
 
   if (!userId) {
-    return res.status(401).json({ error: "Необходимо аутентифицироваться", status: "error" });
+    return sendError(res, "Необходимо аутентифицироваться", "error", 401);
   }
 
   try {
     const advertisement = await removeAdvertisement(id);
     if (advertisement.userId.toString() !== userId.toString()) {
-      return res.status(403).json({ error: "Нет доступа для удаления объявления", status: "error" });
+      return sendError(res, "Нет доступа для удаления объявления", "error", 403);
     }
     
     res.json({ status: "ok" });
   } catch (error) {
-    res.status(500).json({ error: error.message, status: "error" });
+    sendError(res, error.message);
   }
 });
 

@@ -38,6 +38,7 @@ async function sendMessage(data) {
   // Добавляем сообщение в чат
   const message = { author, text, sentAt: new Date() };
   chat.messages.push(message);
+  console.log("Сообщение добавлено");
 
   await chat.save();
 
